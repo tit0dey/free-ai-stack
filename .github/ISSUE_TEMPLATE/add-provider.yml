@@ -1,0 +1,68 @@
+name: Add provider
+description: Suggest a genuinely free AI model/API provider to add
+title: "[Add provider]: <provider name>"
+labels: ["add-provider"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Suggest a provider that is genuinely free to use right now. Include official sources.
+  - type: input
+    id: provider
+    attributes:
+      label: Provider name
+      placeholder: "Example AI"
+    validations:
+      required: true
+  - type: textarea
+    id: free_models
+    attributes:
+      label: Free models
+      description: Which models are available on the free tier?
+    validations:
+      required: true
+  - type: textarea
+    id: limits
+    attributes:
+      label: Limits (officially stated)
+      description: RPM/RPD/TPM/credits or "see console" if official docs say so. Do not invent numbers.
+    validations:
+      required: true
+  - type: dropdown
+    id: card_required
+    attributes:
+      label: Credit card required?
+      options:
+        - "No"
+        - "Yes"
+        - "Unknown"
+    validations:
+      required: true
+  - type: textarea
+    id: region_notes
+    attributes:
+      label: Region notes
+      description: Any country/region restrictions or data-policy notes.
+    validations:
+      required: false
+  - type: input
+    id: source
+    attributes:
+      label: Official source URL
+      placeholder: "https://..."
+    validations:
+      required: true
+  - type: input
+    id: verified_date
+    attributes:
+      label: Date verified
+      placeholder: "YYYY-MM-DD"
+    validations:
+      required: true
+  - type: textarea
+    id: best_use
+    attributes:
+      label: Best use cases
+      placeholder: "coding, chat, vision, long context, embeddings"
+    validations:
+      required: false

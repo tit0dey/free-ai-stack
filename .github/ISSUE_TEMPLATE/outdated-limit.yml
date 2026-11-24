@@ -1,0 +1,56 @@
+name: Outdated limit
+description: Report an outdated or incorrect free-tier limit
+title: "[Outdated limit]: <provider name>"
+labels: ["outdated-limit"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping keep free-ai-stack accurate. Please include an official source.
+  - type: input
+    id: provider
+    attributes:
+      label: Provider
+      description: Which provider has outdated information?
+      placeholder: "Groq"
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: Current value in repo
+      description: What does the repo currently say?
+      placeholder: "30 RPM, 1K RPD..."
+    validations:
+      required: true
+  - type: textarea
+    id: correct
+    attributes:
+      label: Correct value (as officially stated)
+      description: What should it say? Copy the official wording or numbers.
+      placeholder: "Official docs state..."
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Official source URL
+      description: Link to official docs/pricing page.
+      placeholder: "https://..."
+    validations:
+      required: true
+  - type: input
+    id: verified_date
+    attributes:
+      label: Date verified
+      description: When did you check the official source?
+      placeholder: "YYYY-MM-DD"
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Any extra context (region, plan, card requirement, etc.)
+    validations:
+      required: false
