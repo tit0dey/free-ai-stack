@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "free-ai-stack"
+version = "0.1.0"
+description = "A verified directory of genuinely free AI models and APIs, with a tiny CLI."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+  { name = "free-ai-stack contributors" }
+]
+keywords = ["ai", "llm", "free", "api", "agents", "cli"]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Libraries"
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/tit0dey/free-ai-stack"
+Repository = "https://github.com/tit0dey/free-ai-stack"
+Issues = "https://github.com/tit0dey/free-ai-stack/issues"
+
+[project.scripts]
+fas = "free_ai_stack.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["free_ai_stack*"]
+
+[tool.setuptools.package-data]
+free_ai_stack = ["data/*.json"]

@@ -1,0 +1,188 @@
+name: Update free-ai-stack
+
+on:
+  schedule:
+    - cron: "17 6 * * *" # daily at 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Regenerate README and sync packaged data
+        run: python scripts/build_readme.py
+
+      - name: Check provider data sync
+        run: python scripts/check_data_sync.py
+
+      - name: Check provider links
+        id: link_check
+        run: |
+          set +e
+          mkdir -p reports
+          python scripts/check_links.py --json | tee reports/link_check.json
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload link check report
+        if: always() && hashFiles('reports/link_check.*') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: link-check-report
+          path: |
+            reports/link_check.md
+            reports/link_check.json
+          if-no-files-found: ignore
+
+      - name: Create, update, or close stale/broken issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import json, os, subprocess, pathlib, sys
+          report_path = pathlib.Path('reports/link_check.json')
+          if not report_path.exists():
+              print('No link check JSON report found; skipping issue update.')
+              sys.exit(0)
+          report = json.loads(report_path.read_text(encoding='utf-8'))
+          broken = report.get('broken', [])
+          stale = report.get('stale', [])
+          network_unavailable = report.get('network_unavailable', False)
+          title = 'Stale or broken provider entries'
+          def gh(*args, check=True):
+              r = subprocess.run(['gh', *args], capture_output=True, text=True)
+              if check and r.returncode != 0:
+                  print(r.stdout)
+                  print(r.stderr)
+                  raise SystemExit(r.returncode)
+              return r
+          # Find existing open issue with exact title
+          r = gh('issue', 'list', '--state', 'open', '--search', f'"{title}" in:title', '--json', 'number,title', check=False)
+          issue_number = None
+          if r.returncode == 0 and r.stdout.strip():
+              try:
+                  issues = json.loads(r.stdout)
+                  for it in issues:
+                      if it.get('title') == title:
+                          issue_number = it.get('number')
+                          break
+              except Exception as e:
+                  print('Failed to parse issue list:', e)
+          if network_unavailable:
+              print('Network unavailable; not creating/updating/closing stale issue.')
+              sys.exit(0)
+          has_problems = bool(broken or stale)
+          body_lines = [
+              'Automated link/staleness check found provider entries that need review.',
+              '',
+              f"- Broken source URLs: **{len(broken)}**",
+              f"- Stale entries (>30 days or invalid date): **{len(stale)}**",
+              '',
+          ]
+          if broken:
+              body_lines += ['## Broken source URLs', '']
+              for b in broken:
+                  body_lines.append(f"- **{b.get('name','')}** — {b.get('url','')} ({b.get('detail','')})")
+              body_lines.append('')
+          if stale:
+              body_lines += ['## Stale entries', '']
+              for s in stale:
+                  age = s.get('age_days')
+                  age_text = 'unknown' if age is None else f'{age} days'
+                  body_lines.append(f"- **{s.get('name','')}** — last_verified={s.get('last_verified') or 'missing'} ({age_text}) — {s.get('url','')}")
+              body_lines.append('')
+          body_lines += [
+              'This issue is managed by the `Update free-ai-stack` workflow.',
+              'It will be updated when checks change and closed automatically when no broken or stale entries remain.',
+          ]
+          body = '\n'.join(body_lines) + '\n'
+          if has_problems:
+              if issue_number:
+                  print(f'Updating issue #{issue_number}')
+                  gh('issue', 'edit', str(issue_number), '--title', title, '--body', body)
+              else:
+                  print('Creating issue')
+                  gh('issue', 'create', '--title', title, '--body', body)
+          else:
+              if issue_number:
+                  print(f'Closing issue #{issue_number} (no broken/stale entries)')
+                  gh('issue', 'close', str(issue_number), '--comment', 'Automated check found no broken or stale provider entries. Closing this issue.')
+              else:
+                  print('No broken/stale entries and no open issue; nothing to do.')
+          PY
+
+      - name: Detect meaningful changes
+        id: changes
+        run: |
+          python - <<'PY'
+          import os, subprocess, sys
+          def git(args):
+              r = subprocess.run(['git', *args], capture_output=True, text=True)
+              return r.stdout
+          # Files that should trigger a PR if meaningfully changed.
+          paths = ['data/providers.json', 'free_ai_stack/data/providers.json', 'README.md']
+          changed = [p for p in paths if git(['status', '--porcelain', '--', p]).strip()]
+          meaningful = False
+          reasons = []
+          for p in changed:
+              if p.endswith('providers.json'):
+                  meaningful = True
+                  reasons.append(p)
+                  continue
+              if p == 'README.md':
+                  diff = git(['diff', '--unified=0', '--', 'README.md'])
+                  # Ignore badge date-only and COUNTS date-only lines; require actual table/content change.
+                  significant = False
+                  for line in diff.splitlines():
+                      if not line.startswith(('+', '-')) or line.startswith(('+++', '---')):
+                          continue
+                      body = line[1:]
+                      if 'last-verified-' in body and 'img.shields.io/badge/last--verified' in body:
+                          continue
+                      if body.startswith('_Provider coverage:') and 'providers tracked' in body:
+                          continue
+                      # Any other README change (including table rows) is meaningful.
+                      significant = True
+                      break
+                  if significant:
+                      meaningful = True
+                      reasons.append('README.md')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f'meaningful={"true" if meaningful else "false"}\n')
+              f.write(f'reasons={",".join(reasons)}\n')
+          print('meaningful', meaningful, 'reasons', reasons)
+          PY
+
+      - name: Create pull request if meaningfully changed
+        if: steps.changes.outputs.meaningful == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore: refresh provider data"
+          title: "chore: automated provider refresh"
+          body: |
+            Automated refresh run.
+
+            - Regenerated README tables from `data/providers.json`
+            - Synced `free_ai_stack/data/providers.json`
+            - Ran link/staleness checks; report uploaded as workflow artifact
+
+            Please review provider data and any link-check artifact before merging.
+          branch: chore/automated-provider-refresh
+          delete-branch: true
+          add-paths: |
+            README.md
+            data/providers.json
+            free_ai_stack/data/providers.json
